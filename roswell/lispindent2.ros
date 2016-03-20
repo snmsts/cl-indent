@@ -1,0 +1,40 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#| https://github.com/snmsts/cl-indent
+exec ros -Q -- $0 "$@"
+|#
+(ql:quickload :cl-indent :silent t)
+(defpackage :ros.script.lisp-indent2.3667479093
+  (:use :cl))
+
+(in-package :ros.script.lisp-indent2.3667479093)
+
+;; tbd: --no-output --no-modify
+
+(defun main (&rest argv)
+  (declare (ignorable argv))
+  (labels ((g (in out)
+             (cl-indent:indent-lines in out))
+           (f (in)
+             (if (second argv)
+                 (with-open-file (out (first argv)
+                                      :direction :output
+                                      :if-exists :supersede
+                                      :if-does-not-exist :create)
+                   (g in out))
+                 (g in *standard-output*))))
+    (cond ((equal "-" (first argv))
+           (f *standard-input*))
+          ((not (first argv))
+           (format *error-output* "
+ ___________________________________________________________________________
+|   Usage:  ~18A [[<file>] [--no-modify] [--no-output]]       |
+|           --no-output ;; Don't output the indented code, false by default |
+|           --no-modify ;; Don't modify the file, false by default          |
++---------------------------------------------------------------------------+~%"
+                   #.(file-namestring (or *compile-file-pathname* *load-pathname*)))
+           1)
+          (t (with-open-file (in (first argv))
+               (f in))))))
+
+;;; vim: set ft=lisp lisp:
