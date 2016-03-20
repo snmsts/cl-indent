@@ -2,21 +2,21 @@
 ;; Original Version: https://github.com/ds26gte/scmindent/blob/master/lispindent.lisp
 
 (defvar *lisp-keywords* '())
-(defvar *file-name* (first *args*))
-(defvar *output-to-stdout* (not (member "--no-output" *args* :test #'string-equal)))
-(defvar *modify-file* (not (member "--no-modify" *args* :test #'string-equal)))
 
-
-(unless *args* ;; print help if no command-line arguments are passed to the file
-  (princ "
+#-yasi-as-library
+(progn
+  (defvar *file-name* (first *args*))
+  (defvar *output-to-stdout* (not (member "--no-output" *args* :test #'string-equal)))
+  (defvar *modify-file* (not (member "--no-modify" *args* :test #'string-equal)))
+  (unless *args* ;; print help if no command-line arguments are passed to the file
+    (princ "
  ___________________________________________________________________________
 |   Usage:  lispindent2.0.lisp [[<file>] [--no-modify] [--no-output]]       |
 |           --no-output ;; Don't output the indented code, false by default |
 |           --no-modify ;; Don't modify the file, false by default          |
 +---------------------------------------------------------------------------+
 ")
-  (exit))
-
+    (exit)))
 
 (defun define-with-lisp-indent-number (n syms)
   " Associates the keywords in the supplied list with the number in the first
@@ -29,12 +29,10 @@
         (push (setq c (cons x nil)) *lisp-keywords*))
       (setf (cdr c) n))))
 
-
 (define-with-lisp-indent-number 0
   '(block
     handler-bind
     loop))
-
 
 (define-with-lisp-indent-number 1
   '(case
@@ -50,7 +48,6 @@
     when with-input-from-string with-open-file with-open-socket
     with-open-stream with-output-to-string))
 
-
 (define-with-lisp-indent-number 2
   '(assert
     defun destructuring-bind do do*
@@ -58,9 +55,10 @@
     multiple-value-bind
     with-slots))
 
-
 ;; Get lisp keywords stored in your home directory and add them to the *lisp-words*
 ;; list.
+
+#+yasi-as-library
 (with-open-file (i (merge-pathnames ".lispwords" (user-homedir-pathname))
                    :if-does-not-exist nil)
   (when i
@@ -101,7 +99,6 @@
                (return i))))
       (incf i))))
 
-
 (defun lisp-indent-number (str &optional (possible-keyword-p t))
   " Returns the indentation number for the keyword if it is *lisp-keywords*. If it
  starts with 'def', it's indent value is 0. if it has a colon preceding it, the
@@ -115,7 +112,6 @@
                   (lisp-indent-number (subseq str (1+ colon-pos)) nil)
                 -1))
           -1))))
-
 
  #|
  Finds if the next token(anything after whitespace) is a literal, i.e a string, number
@@ -177,7 +173,6 @@
                         (t (+ (- j i) 2))))))))) ;; assumes that the first argument starts after the space at the end of the token
     (values left-indent num-aligned-subforms (1- j)))) ;; j stores where we last stopped processing
 
-
 (defun num-leading-spaces (str)
   (let ((n (length str))
         (i 0))
@@ -189,83 +184,82 @@
         (#\tab (incf i 8))
         (t (return i))))))
 
-
 (defun string-trim-blanks (s)
-  " Remove leading and trailing whitespace even in a string."
+  "Remove leading and trailing whitespace even in a string."
   (string-trim '(#\space #\tab #\newline #\return) s))
 
+(defun indent-lines (&optional (file-with-code *standard-input*) (indented-file *standard-output*))
+  (let ((left-i 0)
+        (paren-stack '())
+        (stringp nil)
+        (multiline-commentp nil))
+    (loop
+       (let* ((curr-line (or (read-line file-with-code nil) (return))) ;; get the current line stop if at the end
+              (leading-spaces (num-leading-spaces curr-line)) ;; find the number of leading spaces
+              (curr-left-i ;; will store the indent level
+               (cond ((or stringp multiline-commentp) leading-spaces) ;; if in a string, the indent level stays the same
+                     ((null paren-stack)
+                      (when (= left-i 0) (setq left-i leading-spaces)) ;; the value in left-i serves as the zero_level
+                      left-i)
+                     (t (let* ((lp (car paren-stack))
+                               (nas (lparen-num-aligned-subforms lp)) ;; num-aligned-subforms is not really necessary since it'll be 2
+                               (nfs (lparen-num-finished-subforms lp)) ;; num-finished-subforms is used to detect whether we have found an if-clause
+                               (extra-w 0)) ;; extra width is used to make the if-clause have more indentation than the else clause
+                          (when (< nfs nas)
+                            (incf (lparen-num-finished-subforms lp))
+                            (setq extra-w 2))
+                          (+ (lparen-spaces-before lp)
+                             extra-w))))))
+         (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
+         (dotimes (k curr-left-i)
+           (write-char #\space indented-file)) ;; print leading spaces corresponding to the indent level.
+         (princ curr-line indented-file) (write-char #\linefeed indented-file) ;; print the line with the correct indentation and a newline(terpri)
+         (let ((i 0)
+               (str-len (length curr-line))
+               (escapep nil)
+               (inter-word-space-p nil))
+           (loop ;; walk the string character by character
+              (when (>= i str-len) (return))
+              (let ((c (char curr-line i)))
+                (cond (escapep (setq escapep nil))
+                      ((char= c #\\) (setq escapep t))
+                      (stringp (when (char= c #\") (setq stringp nil))) ;; found a quote, end of string or multiline comment
+                      (multiline-commentp (when (char= c #\|) (setq multiline-commentp nil))) ;; found a pipe, assume the multiline comment ends here
+                      ((char= c #\;) (return)) ;; found a comment, skip the rest of the line
+                      ((char= c #\") (setq stringp t)) ;; switch the string predicate to true, found a string or comment.
+                      ((char= c #\|) (setq multiline-commentp t)) ;; switch the multiline predicate to true, found a multiline comment.
+                      ((member c '(#\space #\tab) :test #'char=)
+                       (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
+                         (setq inter-word-space-p t)
+                         (let ((lp (car paren-stack)))
+                           (when lp
+                             (incf (lparen-num-finished-subforms lp))))))
+                      ((member c '(#\( #\[ #\{) :test #'char=)
+                       (setq inter-word-space-p nil)
+                       (multiple-value-bind (left-indent num-aligned-subforms j)
+                           (calc-subindent curr-line (1+ i) str-len)
+                                        ; (format t "line(~a,~a): `~a`~%" (+ curr-left-i i) j (subseq curr-line i j))
+                         (push
+                          (make-lparen :spaces-before (+ i curr-left-i left-indent)
+                                       :num-aligned-subforms num-aligned-subforms)
+                          paren-stack)
+                         (setq i j)))
+                      ((member c '(#\) #\] #\}) :test #'char=)
+                       (setq inter-word-space-p nil)
+                       (cond (paren-stack (pop paren-stack))
+                             (t (setq left-i 0))))
+                      (t (setq inter-word-space-p nil)))
+                (incf i))))))))
 
-(with-open-file (file-with-code *file-name*
-                  :direction :input)
-  (with-open-file (indented-file "indented-file.lisp"
-                                 :direction :output :external-format :unix)
-    (defun indent-lines ()
-      (let ((left-i 0)
-            (paren-stack '())
-            (stringp nil)
-            (multiline-commentp nil))
-        (loop
-          (let* ((curr-line (or (read-line file-with-code nil) (return))) ;; get the current line stop if at the end
-                 (leading-spaces (num-leading-spaces curr-line)) ;; find the number of leading spaces
-                 (curr-left-i ;; will store the indent level
-                  (cond ((or stringp multiline-commentp) leading-spaces) ;; if in a string, the indent level stays the same
-                        ((null paren-stack)
-                         (when (= left-i 0) (setq left-i leading-spaces)) ;; the value in left-i serves as the zero_level
-                         left-i)
-                        (t (let* ((lp (car paren-stack))
-                                  (nas (lparen-num-aligned-subforms lp)) ;; num-aligned-subforms is not really necessary since it'll be 2
-                                  (nfs (lparen-num-finished-subforms lp)) ;; num-finished-subforms is used to detect whether we have found an if-clause
-                                  (extra-w 0)) ;; extra width is used to make the if-clause have more indentation than the else clause
-                             (when (< nfs nas)
-                               (incf (lparen-num-finished-subforms lp))
-                               (setq extra-w 2))
-                             (+ (lparen-spaces-before lp)
-                                extra-w))))))
-            (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
-            (dotimes (k curr-left-i) (write-char #\space indented-file)) ;; print leading spaces corresponding to the indent level.
-            (princ curr-line indented-file) (write-char #\linefeed indented-file) ;; print the line with the correct indentation and a newline(terpri)
-            (when *output-to-stdout* ;; output to stdout if *output-to-stdout* is true
-              (dotimes (k curr-left-i) (write-char #\space))
-              (princ curr-line) (terpri))
-            (let ((i 0)
-                  (str-len (length curr-line))
-                  (escapep nil)
-                  (inter-word-space-p nil))
-              (loop                                 ;; walk the string character by character
-               (when (>= i str-len) (return))
-               (let ((c (char curr-line i)))
-                 (cond (escapep (setq escapep nil))
-                       ((char= c #\\) (setq escapep t))
-                       (stringp (when (char= c #\") (setq stringp nil))) ;; found a quote, end of string or multiline comment
-                       (multiline-commentp (when (char= c #\|) (setq multiline-commentp nil))) ;; found a pipe, assume the multiline comment ends here
-                       ((char= c #\;) (return)) ;; found a comment, skip the rest of the line
-                       ((char= c #\") (setq stringp t)) ;; switch the string predicate to true, found a string or comment.
-                       ((char= c #\|) (setq multiline-commentp t)) ;; switch the multiline predicate to true, found a multiline comment.
-                       ((member c '(#\space #\tab) :test #'char=)
-                        (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
-                          (setq inter-word-space-p t)
-                          (let ((lp (car paren-stack)))
-                            (when lp
-                              (incf (lparen-num-finished-subforms lp))))))
-                       ((member c '(#\( #\[ #\{) :test #'char=)
-                        (setq inter-word-space-p nil)
-                        (multiple-value-bind (left-indent num-aligned-subforms j)
-                            (calc-subindent curr-line (1+ i) str-len)
-                         ; (format t "line(~a,~a): `~a`~%" (+ curr-left-i i) j (subseq curr-line i j))
-                          (push
-                           (make-lparen :spaces-before (+ i curr-left-i left-indent)
-                                        :num-aligned-subforms num-aligned-subforms)
-                           paren-stack)
-                          (setq i j)))
-                       ((member c '(#\) #\] #\}) :test #'char=)
-                        (setq inter-word-space-p nil)
-                        (cond (paren-stack (pop paren-stack))
-                              (t (setq left-i 0))))
-                       (t (setq inter-word-space-p nil)))
-                 (incf i))))))))
-    (indent-lines)))
-
-
-(when *modify-file*
-  (delete-file *file-name*)
-  (rename-file "indented-file.lisp" *file-name*))
+#-yasi-as-library
+(progn
+  (with-open-file (file-with-code *file-name*
+                                  :direction :input)
+    (with-open-file (indented-file "indented-file.lisp"
+                                   :direction :output :external-format :unix)
+      (when *output-to-stdout*
+        (setf indented-file (make-broadcast-stream indented-file *standard-output*)))
+      (indent-lines file-with-code indented-file)))
+  (when *modify-file*
+    (delete-file *file-name*)
+    (rename-file "indented-file.lisp" *file-name*)))
