@@ -1,6 +1,9 @@
 ;; Original Author: Dorai Sitaram
 ;; Original Version: https://github.com/ds26gte/scmindent/blob/master/lispindent.lisp
 
+#+yasi-as-library
+(in-package :cl-indent)
+
 (defvar *lisp-keywords* '())
 
 #-yasi-as-library
@@ -58,7 +61,7 @@
 ;; Get lisp keywords stored in your home directory and add them to the *lisp-words*
 ;; list.
 
-#+yasi-as-library
+#-yasi-as-library
 (with-open-file (i (merge-pathnames ".lispwords" (user-homedir-pathname))
                    :if-does-not-exist nil)
   (when i
