@@ -5,7 +5,7 @@
 (in-package :cl-indent)
 
 (defvar *lisp-keywords* '())
-
+(defvar *mode* '())
 #-yasi-as-library
 (progn
   (defvar *file-name* (first *args*))
@@ -161,11 +161,10 @@
           (if (= j i)
               1 ;; no token found. there was a space at the start of the line.
             (let ((token (subseq str i j))) ;; store the function name
-              (if (or (and (and (search ".clj" *file-name*) ;; If the file is a Clojure file, treat curly brackets and square brackets
-                                                            ;; as literal lists with an indentation of 1
-                                (= 4 (- (length *file-name*)
-                                        (search ".clj" *file-name* :from-end t)))
-                                (member (char str (if (= i 0) i (- i 1))) '(#\{ #\[))))
+              (if (or (and (find :clj *mode*)
+                           ;; If the file is a Clojure file, treat curly brackets and square brackets
+                           ;; as literal lists with an indentation of 1
+                           (member (char str (if (= i 0) i (- i 1))) '(#\{ #\[)))
                       (and (>= i 2) (member (char str (- i 2)) '(#\' #\`))))
                   1 ;; if it's a list literal set indent value to 1
                 (let ((nas (lisp-indent-number token))) ;; get the functions indent value. returns -1 if the token is not in *lisp-keywords*
@@ -256,6 +255,10 @@
 
 #-yasi-as-library
 (progn
+  (and (search ".clj" *file-name*)
+       (= 4 (- (length *file-name*)
+               (search ".clj" *file-name* :from-end t)))
+       (pushnew :clj *mode*))
   (with-open-file (file-with-code *file-name*
                                   :direction :input)
     (with-open-file (indented-file "indented-file.lisp"
