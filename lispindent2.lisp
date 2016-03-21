@@ -129,7 +129,6 @@
 
 ;; (trace lisp-indent-number literal-token-p read-from-string past-next-token)
 
-;; stores the necessary data.
 (defstruct lparen
   spaces-before
   num-aligned-subforms
@@ -182,69 +181,70 @@
   (string-trim '(#\space #\tab #\newline #\return) s))
 
 (defun indent-lines (&optional (file-with-code *standard-input*) (indented-file *standard-output*))
-  (let ((left-i 0)
-        (paren-stack '())
-        (stringp nil)
-        (multiline-commentp nil))
-    (loop
-       (let* ((curr-line (or (read-line file-with-code nil) (return))) ;; get the current line stop if at the end
-              (leading-spaces (num-leading-spaces curr-line)) ;; find the number of leading spaces
-              (curr-left-i ;; will store the indent level
-               (cond ((or stringp multiline-commentp) ;; if in a string, the indent level stays the same
-                      leading-spaces)
-                     ((null paren-stack)
-                      (if (= left-i 0) ;; the value in left-i serves as the zero_level
-                          (setq left-i leading-spaces)
-                          left-i))
-                     (t (let* ((lp (car paren-stack))
-                               (nas (lparen-num-aligned-subforms lp)) ;; num-aligned-subforms is not really necessary since it'll be 2
-                               (nfs (lparen-num-finished-subforms lp))) ;; num-finished-subforms is used to detect whether we have found an if-clause
-                          (+ (lparen-spaces-before lp)
-                             (or
-                              (when (< nfs nas)
-                                (incf (lparen-num-finished-subforms lp))
-                                2) ;; extra width is used to make the if-clause have more indentation than the else clause
-                              0)))))))
-         (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
-         (dotimes (k curr-left-i)
-           (write-char #\space indented-file)) ;; print leading spaces corresponding to the indent level.
-         (princ curr-line indented-file)
-         (write-char #\linefeed indented-file) ;; print the line with the correct indentation and a newline(terpri)
-         (loop ;; walk the string character by character
-            with str-len = (length curr-line)
-            with escapep
-            with inter-word-space-p
-            for i from 0
-            for c = (char curr-line i)
-            while (< i str-len)
-            do (cond (escapep (setq escapep nil))
-                     ((char= c #\\) (setq escapep t))
-                     (stringp (when (char= c #\") (setq stringp nil))) ;; found a quote, end of string or multiline comment
-                     (multiline-commentp (when (char= c #\|) (setq multiline-commentp nil))) ;; found a pipe, assume the multiline comment ends here
-                     ((char= c #\;) (return)) ;; found a comment, skip the rest of the line
-                     ((char= c #\") (setq stringp t)) ;; switch the string predicate to true, found a string or comment.
-                     ((char= c #\|) (setq multiline-commentp t)) ;; switch the multiline predicate to true, found a multiline comment.
-                     ((member c '(#\space #\tab) :test #'char=)
-                      (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
-                        (setq inter-word-space-p t)
-                        (let ((lp (car paren-stack)))
-                          (when lp
-                            (incf (lparen-num-finished-subforms lp))))))
-                     ((member c '(#\( #\[ #\{) :test #'char=)
-                      (setq inter-word-space-p nil)
-                      (multiple-value-bind (left-indent num-aligned-subforms j)
-                          (calc-subindent curr-line (1+ i) str-len)
+  (loop
+     with left-i = 0
+     with paren-stack = '()
+     with stringp = nil
+     with multiline-commentp = nil
+     for line-num from 1
+     for curr-line = (or (read-line file-with-code nil) (return)) ;; get the current line stop if at the end
+     for leading-spaces = (num-leading-spaces curr-line) ;; find the number of leading spaces
+     for curr-left-i ;; will store the indent level
+       = (cond ((or stringp multiline-commentp) ;; if in a string, the indent level stays the same
+                leading-spaces)
+               ((null paren-stack)
+                (if (= left-i 0) ;; the value in left-i serves as the zero_level
+                    (setq left-i leading-spaces)
+                    left-i))
+               (t (let* ((lp (car paren-stack))
+                         (nas (lparen-num-aligned-subforms lp)) ;; num-aligned-subforms is not really necessary since it'll be 2
+                         (nfs (lparen-num-finished-subforms lp))) ;; num-finished-subforms is used to detect whether we have found an if-clause
+                    (+ (lparen-spaces-before lp)
+                       (or
+                        (when (< nfs nas)
+                          (incf (lparen-num-finished-subforms lp))
+                          2) ;; extra width is used to make the if-clause have more indentation than the else clause
+                        0)))))
+     do
+       (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
+       (dotimes (k curr-left-i)
+         (write-char #\space indented-file)) ;; print leading spaces corresponding to the indent level.
+       (princ curr-line indented-file)
+       (write-char #\linefeed indented-file) ;; print the line with the correct indentation and a newline(terpri)
+       (loop ;; walk the string character by character
+          with str-len = (length curr-line)
+          with escapep
+          with inter-word-space-p
+          for i from 0 to (1- str-len)
+          for c = (char curr-line i)
+          do (cond (escapep (setq escapep nil))
+                   ((char= c #\\) (setq escapep t))
+                   (stringp (when (char= c #\") (setq stringp nil))) ;; found a quote, end of string or multiline comment
+                   (multiline-commentp (when (char= c #\|) (setq multiline-commentp nil))) ;; found a pipe, assume the multiline comment ends here
+                   ((char= c #\;) (return)) ;; found a comment, skip the rest of the line
+                   ((char= c #\") (setq stringp t)) ;; switch the string predicate to true, found a string or comment.
+                   ((char= c #\|) (setq multiline-commentp t)) ;; switch the multiline predicate to true, found a multiline comment.
+                   ((member c '(#\space #\tab) :test #'char=)
+                    (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
+                      (setq inter-word-space-p t)
+                      (let ((lp (car paren-stack)))
+                        (when lp
+                          (incf (lparen-num-finished-subforms lp))))))
+                   ((member c '(#\( #\[ #\{) :test #'char=)
+                    (setq inter-word-space-p nil)
+                    (multiple-value-bind (left-indent num-aligned-subforms j)
+                        (calc-subindent curr-line (1+ i) str-len)
                                         ; (format t "line(~a,~a): `~a`~%" (+ curr-left-i i) j (subseq curr-line i j))
-                        (push
-                         (make-lparen :spaces-before (+ i curr-left-i left-indent)
-                                      :num-aligned-subforms num-aligned-subforms)
-                         paren-stack)
-                        (setq i j)))
-                     ((member c '(#\) #\] #\}) :test #'char=)
-                      (setq inter-word-space-p nil)
-                      (cond (paren-stack (pop paren-stack))
-                            (t (setq left-i 0))))
-                     (t (setq inter-word-space-p nil))))))))
+                      (push
+                       (make-lparen :spaces-before (+ i curr-left-i left-indent)
+                                    :num-aligned-subforms num-aligned-subforms)
+                       paren-stack)
+                      (setq i j)))
+                   ((member c '(#\) #\] #\}) :test #'char=)
+                    (setq inter-word-space-p nil)
+                    (cond (paren-stack (pop paren-stack))
+                          (t (setq left-i 0))))
+                   (t (setq inter-word-space-p nil))))))
 
 #-yasi-as-library
 (progn
