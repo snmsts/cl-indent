@@ -119,11 +119,13 @@
 (defun literal-token-p (str)
   (let ((colon-pos (position #\: str)))
     (if colon-pos
-        (if (= colon-pos 0) t nil)
-      (let ((read-token
-             (ignore-errors
-               (read-from-string str))))
-        (or (characterp read-token) (numberp read-token) (stringp read-token))))))
+        (zerop colon-pos)
+        (let ((read-token
+               (ignore-errors
+                 (read-from-string str))))
+          (or (characterp read-token)
+              (numberp read-token)
+              (stringp read-token))))))
 
 ;; (trace lisp-indent-number literal-token-p read-from-string past-next-token)
 
@@ -134,14 +136,14 @@
   (num-finished-subforms 0))
 
 #|
- (print (calc-subindent "eval-when (condition that)" 0 20)) ;; ==> 2
- (print (calc-subindent "some-func (condition that)" 0 20)) ;; ==> 11
- (print (calc-subindent "some-func   (condition that)" 0 20)) ;; ==> 11
+ (calc-subindent "eval-when (condition that)" 0 20) ;; ==> 2
+ (calc-subindent "some-func (condition that)" 0 20) ;; ==> 11
+ (calc-subindent "some-func   (condition that)" 0 20) ;; ==> 11
     ;; since the function uses past-next-token, it'll always return the position
     ;; of the first space which causes wrong indentation.
- (print (calc-subindent "if   (condition that)" 0 20)) ;; ==> 2
- (print (calc-subindent "'(   (condition that)" 0 20)) ;; ==> 1
- (print (calc-subindent ":define   (condition that)" 0 20)) ;; ==> 2
+ (calc-subindent "if   (condition that)" 0 20) ;; ==> 2
+ (calc-subindent "'(   (condition that)" 0 20) ;; ==> 1
+ (calc-subindent ":define   (condition that)" 0 20) ;; ==> 2
 |#
 (defun calc-subindent (str i n)
   (let* ((j (past-next-token str i n)) ;; store position of start of the next token
