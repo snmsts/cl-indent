@@ -17,7 +17,7 @@ exec ros -Q -- $0 "$@"
              (cl-indent:indent-lines in out))
            (f (in)
              (if (second argv)
-                 (with-open-file (out (first argv)
+                 (with-open-file (out (second argv)
                                       :direction :output
                                       :if-exists :supersede
                                       :if-does-not-exist :create)
