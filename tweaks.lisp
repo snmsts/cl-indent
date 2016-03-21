@@ -49,7 +49,8 @@
 (cl:defvar *put* '())
 (defun put (symbol property value)
   (when (eql property 'common-lisp-indent-function)
-    (push (cons (string-downcase symbol) value) *put*)))
+    (setf *put* (cons (cons (string-downcase symbol) value)
+                       (remove (string-downcase symbol) *put* :key 'car :test 'equal)))))
 
 (defun make-local-variable (symbol)
   (declare (ignore symbol)))
@@ -78,14 +79,16 @@
 (provide 'slime)
 (provide 'cl-lib)
 
-(unless *put*
-  (load (merge-pathnames "contrib/slime-cl-indent.el"
-                         (asdf:system-source-directory (asdf:find-system :swank)))))
+(load (merge-pathnames "contrib/slime-cl-indent.el"
+                       (asdf:system-source-directory (asdf:find-system :swank))))
 
 (defun supported (x)
   (or (numberp x)
       (and (listp x)
-           (or (every #'numberp x)
+           (or (every (lambda (x)
+                        (or (numberp x)
+                            (eql x '&body)))
+                      x)
                (equal (first x) 'as)))))
 
 (defun keywords ()

@@ -6,6 +6,7 @@
 
 (defvar *lisp-keywords* (or #+yasi-as-library (cl-indent.var:keywords) '()))
 (defvar *tab-size* 8)
+(defvar *body* 2)
 (defvar *mode* '())
 
 #-yasi-as-library
@@ -29,32 +30,6 @@
       (unless c
         (push (setq c (cons x nil)) *lisp-keywords*))
       (setf (cdr c) n))))
-
-(define-with-lisp-indent-number 0
-  '(block
-    handler-bind
-    loop))
-
-(define-with-lisp-indent-number 1
-  '(case
-    defpackage do-all-symbols do-external-symbols dolist do-symbols dotimes
-    ecase etypecase eval-when
-    flet
-    handler-case
-    labels lambda let let*
-    macrolet
-    prog1
-    typecase
-    unless unwind-protect
-    when with-input-from-string with-open-file with-open-socket
-    with-open-stream with-output-to-string))
-
-(define-with-lisp-indent-number 2
-  '(assert
-    defun destructuring-bind do do*
-    if
-    multiple-value-bind
-    with-slots))
 
 #|
   Basically returns the position of the end of this token(symbol,variable e.t.c), e.g:
@@ -208,8 +183,12 @@
                              (incf (blk-num-finished-subforms blk))
                              2)) ;; extra width is used to make the if-clause have more indentation than the else clause
                           ((and (listp nas))
-                           (or (nth (1- nfs) nas)
-                               2)))
+                           (let ((found (nth (1- nfs) nas)))
+                             (or (when (numberp found) found)
+                                 (when (or (eql found '&body)
+                                           (eql (first (last nas)) '&body))
+                                   *body*) 
+                                 2))))
                         0)))))
      do
        (cond
@@ -260,11 +239,36 @@
                     (cond (block-stack (pop block-stack))
                           (t (setq left-i 0))))
                    (t (setq inter-word-space-p nil)))
-            finally #1#)
+          finally #1#)
        (write-char #\Linefeed out))) ;; print the line with the correct indentation and a newline(terpri)
 
 #-yasi-as-library
 (progn
+  (define-with-lisp-indent-number 0
+      '(block
+        handler-bind
+        loop))
+
+  (define-with-lisp-indent-number 1
+      '(case
+        defpackage do-all-symbols do-external-symbols dolist do-symbols dotimes
+        ecase etypecase eval-when
+        flet
+        handler-case
+        labels lambda let let*
+        macrolet
+        prog1
+        typecase
+        unless unwind-protect
+        when with-input-from-string with-open-file
+        with-open-stream with-output-to-string))
+
+  (define-with-lisp-indent-number 2
+      '(assert
+        defun destructuring-bind do do*
+        if
+        multiple-value-bind
+        with-slots))
   (defvar *file-name* (first *args*))
   (defvar *output-to-stdout* (not (member "--no-output" *args* :test #'string-equal)))
   (defvar *modify-file* (not (member "--no-modify" *args* :test #'string-equal)))
