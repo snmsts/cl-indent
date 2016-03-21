@@ -75,19 +75,18 @@
      with escapep = nil
      for i from current below n
      for c = (char str i) ;; c holds the current character.
-     do
-       (cond (escapep (setq escapep nil)) ;; if true set to false
-             ((char= c #\\) (setq escapep t))
-             ((char= c #\#)
-              (let ((j (+ i 1)))
-                (if (>= j n) (return i)
-                    (let ((c (char str j)))
-                      (cond ((char= c #\\) (setq escapep t i j)) ;; found character literal, stop.
-                            (t (return i)))))))
-             ((member c '(#\Space #\Tab #\( #\) #\[ #\] #\" #\' #\` #\, #\; #\} #\{))
-              ;; (format t "token: `~a`" c)
-              (return i))))
-  n)
+     do (cond (escapep (setq escapep nil)) ;; if true set to false
+              ((char= c #\\) (setq escapep t))
+              ((char= c #\#)
+               (let ((j (+ i 1)))
+                 (if (>= j n) (return i)
+                     (let ((c (char str j)))
+                       (cond ((char= c #\\) (setq escapep t i j)) ;; found character literal, stop.
+                             (t (return i)))))))
+              ((member c '(#\Space #\Tab #\( #\) #\[ #\] #\" #\' #\` #\, #\; #\} #\{))
+               ;; (format t "token: `~a`" c)
+               (return i)))
+     finally (return n)))
 
 (defun lisp-indent (str &optional (possible-keyword-p t))
   "Returns the indentation information for the keyword if it is *lisp-keywords*. If it
@@ -145,7 +144,7 @@
                       (and (>= i 2) (member (char str (- i 2)) '(#\' #\`))))
                   1 ;; if it's a list literal set indent value to 1
                 (let ((nas (lisp-indent token))) ;; get the functions indent value. returns -1 if the token is not in *lisp-keywords*
-                  (cond ((and (numberp nas) (>= nas 0)) ;; the token is a lisp keyword.
+                  (cond ((numberp nas) ;; the token is a lisp keyword.
                          (setq num-aligned-subforms nas)
                          2)
                         ((literal-token-p token) 1) ;; found literal, the indent value defaults to 1
