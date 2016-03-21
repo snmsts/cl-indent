@@ -4,7 +4,7 @@
 #+yasi-as-library
 (in-package :cl-indent)
 
-(defvar *lisp-keywords* (or #+yasi-as-library'() '()))
+(defvar *lisp-keywords* (or #+yasi-as-library (cl-indent.var:keywords) '()))
 (defvar *tab-size* 8)
 (defvar *mode* '())
 
@@ -88,18 +88,16 @@
               (return i)))
        (incf i)))
 
-(defun lisp-indent-number (str &optional (possible-keyword-p t))
-  "Returns the indentation number for the keyword if it is *lisp-keywords*. If it
+(defun lisp-indent (str &optional (possible-keyword-p t))
+  "Returns the indentation information for the keyword if it is *lisp-keywords*. If it
  starts with 'def', it's indent value is 0. if it has a colon preceding it, the
  rest of the string is tested recursively to see whether it is a keyword."
   (cond ((cdr (assoc str *lisp-keywords* :test #'string-equal)))
-        ((zerop (or (search "def" str :test #'char-equal) -1)) 0)
+        ((search "def" str :test #'char-equal) 0)
         (possible-keyword-p
          (let ((colon-pos (position #\: str :from-end t)))
-           (if colon-pos
-               (lisp-indent-number (subseq str (1+ colon-pos)) nil)
-               -1)))
-        (t -1)))
+           (when colon-pos
+             (lisp-indent (subseq str (1+ colon-pos)) nil))))))
 
 (defun literal-token-p (str)
   (let ((colon-pos (position #\: str)))
@@ -112,7 +110,7 @@
               (numberp read-token)
               (stringp read-token))))))
 
-;; (trace lisp-indent-number literal-token-p read-from-string past-next-token)
+;; (trace lisp-indent literal-token-p read-from-string past-next-token)
 
 (defstruct blk ;;block
   spaces-before
@@ -140,14 +138,14 @@
           (if (= j i)
               1 ;; no token found. there was a space at the start of the line.
             (let ((token (subseq str i j))) ;; store the function name
-              (if (or (and (find :clj *mode*)
-                           ;; If the file is a Clojure file, treat curly brackets and square brackets
-                           ;; as literal lists with an indentation of 1
+              (if (or (and (find :accept-other-brackets *mode*)
+                           ;; Treat curly brackets and square brackets as literal lists with an indentation of 1
                            (member (char str (if (= i 0) i (- i 1))) '(#\{ #\[)))
                       (and (>= i 2) (member (char str (- i 2)) '(#\' #\`))))
                   1 ;; if it's a list literal set indent value to 1
-                (let ((nas (lisp-indent-number token))) ;; get the functions indent value. returns -1 if the token is not in *lisp-keywords*
-                  (cond ((>= nas 0) (setq num-aligned-subforms nas) ;; the token is a lisp keyword.
+                (let ((nas (lisp-indent token))) ;; get the functions indent value. returns -1 if the token is not in *lisp-keywords*
+                  (cond ((and (numberp nas) (>= nas 0)) ;; the token is a lisp keyword.
+                         (setq num-aligned-subforms nas)
                          2)
                         ((literal-token-p token) 1) ;; found literal, the indent value defaults to 1
                         ((= j n) 1) ;; first argument probably in next lines
@@ -250,9 +248,9 @@
          (let ((w (or (read i nil) (return))))
            (define-with-lisp-indent-number (car w) (cdr w))))))
   (and (search ".clj" *file-name*)
-       (= 4 (- (length *file-name*)
+       (= 4 (- (length *file-name*);; If the file is a Clojure file.
                (search ".clj" *file-name* :from-end t)))
-       (pushnew :clj *mode*))
+       (pushnew :accept-other-brackets *mode*))
   (with-open-file (file-with-code *file-name*
                                   :direction :input)
     (with-open-file (indented-file "indented-file.lisp"

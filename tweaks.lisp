@@ -7,7 +7,8 @@
 
 (defpackage :cl-indent.var
   (:use :cl)
-  (:shadow :if :error :defvar))
+  (:shadow :if :error :defvar)
+  (:export :keywords))
 
 (in-package :cl-indent.var)
 
@@ -78,3 +79,15 @@
 
 (load (merge-pathnames "contrib/slime-cl-indent.el"
                        (asdf:system-source-directory (asdf:find-system :swank))))
+
+(defun supported (x)
+  (or (numberp x)))
+
+(defun keywords ()
+  (loop for elt in *put*
+     for (var . val) = elt
+     when (supported val)
+     collect elt into result
+     else
+     collect elt into non
+     finally (return (values result non))))
