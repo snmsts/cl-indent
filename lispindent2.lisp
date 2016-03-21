@@ -41,7 +41,7 @@
     ecase etypecase eval-when
     flet
     handler-case
-    labels lambda let let* let-values
+    labels lambda let let*
     macrolet
     prog1
     typecase
