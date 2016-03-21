@@ -129,9 +129,12 @@
 
 ;; (trace lisp-indent-number literal-token-p read-from-string past-next-token)
 
-(defstruct lparen
+(defstruct blk ;;block
   spaces-before
   num-aligned-subforms
+  line
+  block-type
+  indent
   (num-finished-subforms 0))
 
 #|
@@ -183,7 +186,7 @@
 (defun indent-lines (&optional (file-with-code *standard-input*) (indented-file *standard-output*))
   (loop
      with left-i = 0
-     with paren-stack = '()
+     with block-stack = '()
      with stringp = nil
      with multiline-commentp = nil
      for line-num from 1
@@ -192,17 +195,17 @@
      for curr-left-i ;; will store the indent level
        = (cond ((or stringp multiline-commentp) ;; if in a string, the indent level stays the same
                 leading-spaces)
-               ((null paren-stack)
+               ((null block-stack)
                 (if (= left-i 0) ;; the value in left-i serves as the zero_level
                     (setq left-i leading-spaces)
                     left-i))
-               (t (let* ((lp (car paren-stack))
-                         (nas (lparen-num-aligned-subforms lp)) ;; num-aligned-subforms is not really necessary since it'll be 2
-                         (nfs (lparen-num-finished-subforms lp))) ;; num-finished-subforms is used to detect whether we have found an if-clause
-                    (+ (lparen-spaces-before lp)
+               (t (let* ((blk (car block-stack))
+                         (nas (blk-num-aligned-subforms blk)) ;; num-aligned-subforms is not really necessary since it'll be 2
+                         (nfs (blk-num-finished-subforms blk))) ;; num-finished-subforms is used to detect whether we have found an if-clause
+                    (+ (blk-spaces-before blk)
                        (or
                         (when (< nfs nas)
-                          (incf (lparen-num-finished-subforms lp))
+                          (incf (blk-num-finished-subforms blk))
                           2) ;; extra width is used to make the if-clause have more indentation than the else clause
                         0)))))
      do
@@ -227,22 +230,24 @@
                    ((member c '(#\space #\tab) :test #'char=)
                     (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
                       (setq inter-word-space-p t)
-                      (let ((lp (car paren-stack)))
-                        (when lp
-                          (incf (lparen-num-finished-subforms lp))))))
+                      (let ((blk (car block-stack)))
+                        (when blk
+                          (incf (blk-num-finished-subforms blk))))))
                    ((member c '(#\( #\[ #\{) :test #'char=)
                     (setq inter-word-space-p nil)
                     (multiple-value-bind (left-indent num-aligned-subforms j)
                         (calc-subindent curr-line (1+ i) str-len)
-                                        ; (format t "line(~a,~a): `~a`~%" (+ curr-left-i i) j (subseq curr-line i j))
+                      ;; (format t "line(~a,~a): `~a`~%" (+ curr-left-i i) j (subseq curr-line i j))
                       (push
-                       (make-lparen :spaces-before (+ i curr-left-i left-indent)
-                                    :num-aligned-subforms num-aligned-subforms)
-                       paren-stack)
+                       (make-blk :spaces-before (+ i curr-left-i left-indent)
+                                 :num-aligned-subforms num-aligned-subforms
+                                 :line line-num
+                                 :block-type c)
+                       block-stack)
                       (setq i j)))
                    ((member c '(#\) #\] #\}) :test #'char=)
                     (setq inter-word-space-p nil)
-                    (cond (paren-stack (pop paren-stack))
+                    (cond (block-stack (pop block-stack))
                           (t (setq left-i 0))))
                    (t (setq inter-word-space-p nil))))))
 
