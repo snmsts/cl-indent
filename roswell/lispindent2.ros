@@ -14,7 +14,7 @@ exec ros -Q -- $0 "$@"
 (defun main (&rest argv)
   (declare (ignorable argv))
   (labels ((g (in out)
-             (cl-indent:indent-lines in out))
+             (cl-indent:indent-lines :in in :out out))
            (f (in)
              (if (second argv)
                  (with-open-file (out (second argv)

@@ -153,28 +153,33 @@
     (values left-indent num-aligned-subforms (1- j)))) ;; j stores where we last stopped processing
 
 (defun num-leading-spaces (str)
-  (let ((n (length str))
-        (i 0))
-    (loop
+  (loop
+     with i = 0
+     with n = (length str)
+     do 
        (when (>= i n)
          (return 0))
        (case (char str i)
          (#\Space (incf i))
          (#\Tab (incf i *tab-size*))
-         (t (return i))))))
+         (t (return i)))))
 
-(defun string-trim-blanks (s)
+(defun string-trim-blanks (s &optional type)
   "Remove leading and trailing whitespace even in a string."
-  (string-trim '(#\Space #\Tab #\Newline #\Return) s))
+  (funcall (case type
+             (:right #'string-right-trim)
+             (:left #'string-left-trim)
+             (t #'string-trim))
+           '(#\Space #\Tab #\Newline #\Return) s))
 
-(defun indent-lines (&optional (file-with-code *standard-input*) (indented-file *standard-output*))
+(defun indent-lines (&key (in *standard-input*) (out *standard-output*))
   (loop
      with left-i = 0
      with block-stack = '()
      with stringp = nil
      with multiline-commentp = nil
      for line-num from 1
-     for curr-line = (or (read-line file-with-code nil) (return)) ;; get the current line stop if at the end
+     for curr-line = (or (read-line in nil) (return)) ;; get the current line stop if at the end
      for leading-spaces = (num-leading-spaces curr-line) ;; find the number of leading spaces
      for curr-left-i ;; will store the indent level
        = (cond ((or stringp multiline-commentp) ;; if in a string, the indent level stays the same
@@ -193,11 +198,17 @@
                           2) ;; extra width is used to make the if-clause have more indentation than the else clause
                         0)))))
      do
-       (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
-       (dotimes (k curr-left-i)
-         (write-char #\Space indented-file)) ;; print leading spaces corresponding to the indent level.
-       (princ curr-line indented-file)
-       (write-char #\Linefeed indented-file) ;; print the line with the correct indentation and a newline(terpri)
+       (cond
+         (multiline-commentp
+          (setq curr-line (string-trim-blanks curr-line :right))
+          (princ curr-line out))
+         (stringp
+          (princ curr-line out))
+         (t
+          (setq curr-line (string-trim-blanks curr-line)) ;; remove leading to be added according to the indentation level
+          (dotimes (k curr-left-i)
+            (write-char #\Space out)) ;; print leading spaces corresponding to the indent level.
+          (princ curr-line out)))
        (loop ;; walk the string character by character
           with str-len = (length curr-line)
           with escapep
@@ -233,7 +244,9 @@
                     (setq inter-word-space-p nil)
                     (cond (block-stack (pop block-stack))
                           (t (setq left-i 0))))
-                   (t (setq inter-word-space-p nil))))))
+                   (t (setq inter-word-space-p nil))))
+       (write-char #\Linefeed out))) ;; print the line with the correct indentation and a newline(terpri)
+       
 
 #-yasi-as-library
 (progn
@@ -257,7 +270,7 @@
                                    :direction :output :external-format :unix)
       (when *output-to-stdout*
         (setf indented-file (make-broadcast-stream indented-file *standard-output*)))
-      (indent-lines file-with-code indented-file)))
+      (indent-lines :in file-with-code :out indented-file)))
   (when *modify-file*
     (delete-file *file-name*)
     (rename-file "indented-file.lisp" *file-name*)))
