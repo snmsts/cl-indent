@@ -70,21 +70,20 @@
       (let ((w (or (read i nil) (return))))
         (define-with-lisp-indent-number (car w) (cdr w))))))
 
-
 #|
   Basically returns the position of the end of this token(symbol,variable e.t.c), e.g:
-    (print (past-next-token " this that " 0 8))      ==> 0
-    (print (past-next-token " this that " 1 8))      ==> 5
-    (print (past-next-token "this       that " 0 8)) ==> 4
-    (print (past-next-token "this       that " 1 8)) ==> 4
-    (print (past-next-token "this       that " 1 3)) ==> 3
-    (print (past-next-token "this#hash" 0 20)) ==> 4
-    (print (past-next-token "th(is#hash" 0 20)) ==> 3
-    (print (past-next-token "th\\(is#hash" 0 20)) ==> 6
-    (print (past-next-token "th\(is#hash" 0 20)) ==> 2 ;; the escape is not valid hence ignored.
-    (print (past-next-token "thishash" 0 20)) ==> ERROR!!
+    (past-next-token " this that " 0 8)      => 0
+    (past-next-token " this that " 1 8)      => 5
+    (past-next-token "this       that " 0 8) => 4
+    (past-next-token "this       that " 1 8) => 4
+    (past-next-token "this       that " 1 3) => 3
+    (past-next-token "this#hash" 0 20)       => 4
+    (past-next-token "th(is#hash" 0 20)      => 3
+    (past-next-token "th\\(is#hash" 0 20)    => 6
+    (past-next-token "thishash" 0 20)        => ERROR!!
    if not found, it returns n.
 |#
+
 (defun past-next-token (str i n)
   (let ((escapep nil))
     (loop
@@ -104,7 +103,7 @@
       (incf i))))
 
 (defun lisp-indent-number (str &optional (possible-keyword-p t))
-  " Returns the indentation number for the keyword if it is *lisp-keywords*. If it
+  "Returns the indentation number for the keyword if it is *lisp-keywords*. If it
  starts with 'def', it's indent value is 0. if it has a colon preceding it, the
  rest of the string is tested recursively to see whether it is a keyword."
   (or (cdr (assoc str *lisp-keywords* :test #'string-equal))
@@ -117,17 +116,6 @@
                 -1))
           -1))))
 
- #|
- Finds if the next token(anything after whitespace) is a literal, i.e a string, number
- or character. read-from-string fetches this token.
-    (print (type-of (read-from-string "this"))) ;; ==> SYMBOL
-    (print (type-of (read-from-string "12 13 14"))) ;; ==> (INTEGER 0 16777215)
-    (print (type-of (read-from-string "'(this that) 13 14"))) ;; ==> CONS
-    (print (type-of (read-from-string "12.25 13 14"))) ;; ==> SINGLE-FLOAT
-    (print (type-of (read-from-string ":if 13 14"))) ;; ==> KEYWORD
-    (print (type-of (read-from-string "#() 13 14"))) ;; ==> (SIMPLE-VECTOR 0)
-    (print (type-of (read-from-string "{} 13 14"))) ;; ==> SYMBOL
-|#
 (defun literal-token-p (str)
   (let ((colon-pos (position #\: str)))
     (if colon-pos
