@@ -70,11 +70,12 @@
    if not found, it returns n.
 |#
 
-(defun past-next-token (str i n)
+(defun past-next-token (str current n)
   (loop
      with escapep = nil
+     for i from current below n
      for c = (char str i) ;; c holds the current character.
-     do (when (>= i n) (return i))
+     do
        (cond (escapep (setq escapep nil)) ;; if true set to false
              ((char= c #\\) (setq escapep t))
              ((char= c #\#)
@@ -85,8 +86,8 @@
                             (t (return i)))))))
              ((member c '(#\Space #\Tab #\( #\) #\[ #\] #\" #\' #\` #\, #\; #\} #\{))
               ;; (format t "token: `~a`" c)
-              (return i)))
-       (incf i)))
+              (return i))))
+  n)
 
 (defun lisp-indent (str &optional (possible-keyword-p t))
   "Returns the indentation information for the keyword if it is *lisp-keywords*. If it
@@ -246,7 +247,6 @@
                           (t (setq left-i 0))))
                    (t (setq inter-word-space-p nil))))
        (write-char #\Linefeed out))) ;; print the line with the correct indentation and a newline(terpri)
-       
 
 #-yasi-as-library
 (progn
