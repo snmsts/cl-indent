@@ -1,14 +1,15 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (pushnew :yasi-as-library *features*))
 
-(defpackage :cl-indent
-  (:use :cl)
-  (:export :indent-lines))
-
 (defpackage :cl-indent.var
   (:use :cl)
   (:shadow :if :error :defvar)
-  (:export :keywords))
+  (:export :keywords :as))
+
+(defpackage :cl-indent
+  (:use :cl)
+  (:export :indent-lines)
+  (:import-from :cl-indent.var :as))
 
 (in-package :cl-indent.var)
 
@@ -77,11 +78,15 @@
 (provide 'slime)
 (provide 'cl-lib)
 
-(load (merge-pathnames "contrib/slime-cl-indent.el"
-                       (asdf:system-source-directory (asdf:find-system :swank))))
+(unless *put*
+  (load (merge-pathnames "contrib/slime-cl-indent.el"
+                         (asdf:system-source-directory (asdf:find-system :swank)))))
 
 (defun supported (x)
-  (or (numberp x)))
+  (or (numberp x)
+      (and (listp x)
+           (or (every #'numberp x)
+               (equal (first x) 'as)))))
 
 (defun keywords ()
   (loop for elt in *put*

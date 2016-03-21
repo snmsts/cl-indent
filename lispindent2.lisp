@@ -92,7 +92,12 @@
   "Returns the indentation information for the keyword if it is *lisp-keywords*. If it
  starts with 'def', it's indent value is 0. if it has a colon preceding it, the
  rest of the string is tested recursively to see whether it is a keyword."
-  (cond ((cdr (assoc str *lisp-keywords* :test #'string-equal)))
+  (cond ((let ((result (cdr (assoc str *lisp-keywords* :test #'string-equal))))
+           (when result
+             (if (and (listp result)
+                      (eql (first result) 'as))
+                 (lisp-indent (string (second result)) nil)
+                 result))))
         ((search "def" str :test #'char-equal) 0)
         (possible-keyword-p
          (let ((colon-pos (position #\: str :from-end t)))
@@ -135,21 +140,25 @@
   (let* ((j (past-next-token str i n)) ;; store position of start of the next token
          (num-aligned-subforms 0)
          (left-indent
-          (if (= j i)
-              1 ;; no token found. there was a space at the start of the line.
-            (let ((token (subseq str i j))) ;; store the function name
-              (if (or (and (find :accept-other-brackets *mode*)
-                           ;; Treat curly brackets and square brackets as literal lists with an indentation of 1
-                           (member (char str (if (= i 0) i (- i 1))) '(#\{ #\[)))
-                      (and (>= i 2) (member (char str (- i 2)) '(#\' #\`))))
-                  1 ;; if it's a list literal set indent value to 1
-                (let ((nas (lisp-indent token))) ;; get the functions indent value. returns -1 if the token is not in *lisp-keywords*
-                  (cond ((numberp nas) ;; the token is a lisp keyword.
-                         (setq num-aligned-subforms nas)
-                         2)
-                        ((literal-token-p token) 1) ;; found literal, the indent value defaults to 1
-                        ((= j n) 1) ;; first argument probably in next lines
-                        (t (+ (- j i) 2))))))))) ;; assumes that the first argument starts after the space at the end of the token
+          (cond
+            ((= j i) 1) ;; no token found. there was a space at the start of the line.
+            ((let ((token (subseq str i j))) ;; store the function name
+               (if (or (and (find :accept-other-brackets *mode*)
+                            ;; Treat curly brackets and square brackets as literal lists with an indentation of 1
+                            (member (char str (if (= i 0) i (- i 1))) '(#\{ #\[)))
+                       (and (>= i 2) (member (char str (- i 2)) '(#\' #\`))))
+                   1 ;; if it's a list literal set indent value to 1
+                   (let ((nas (lisp-indent token))) ;; get the functions indent information.
+                     (cond
+                       ((numberp nas)
+                        (setq num-aligned-subforms nas)
+                        2)
+                       ((listp nas)
+                        (setq num-aligned-subforms nas)
+                        0)
+                       ((literal-token-p token) 1) ;; found literal, the indent value defaults to 1
+                       ((= j n) 1) ;; first argument probably in next lines
+                       (t (+ (- j i) 2)))))))))) ;; assumes that the first argument starts after the space at the end of the token
     (values left-indent num-aligned-subforms (1- j)))) ;; j stores where we last stopped processing
 
 (defun num-leading-spaces (str)
@@ -193,9 +202,14 @@
                          (nfs (blk-num-finished-subforms blk))) ;; num-finished-subforms is used to detect whether we have found an if-clause
                     (+ (blk-spaces-before blk)
                        (or
-                        (when (< nfs nas)
-                          (incf (blk-num-finished-subforms blk))
-                          2) ;; extra width is used to make the if-clause have more indentation than the else clause
+                        (cond
+                          ((numberp nas)
+                           (when (< nfs nas)
+                             (incf (blk-num-finished-subforms blk))
+                             2)) ;; extra width is used to make the if-clause have more indentation than the else clause
+                          ((and (listp nas))
+                           (or (nth (1- nfs) nas)
+                               2)))
                         0)))))
      do
        (cond
@@ -223,6 +237,7 @@
                    ((char= c #\") (setq stringp t)) ;; switch the string predicate to true, found a string or comment.
                    ((char= c #\|) (setq multiline-commentp t)) ;; switch the multiline predicate to true, found a multiline comment.
                    ((member c '(#\Space #\Tab) :test #'char=)
+                    #1=
                     (unless inter-word-space-p ;; inter-word-space-p helps us ignore consecutive spaces that would give a false detection of an if-clause.
                       (setq inter-word-space-p t)
                       (let ((blk (car block-stack)))
@@ -244,7 +259,8 @@
                     (setq inter-word-space-p nil)
                     (cond (block-stack (pop block-stack))
                           (t (setq left-i 0))))
-                   (t (setq inter-word-space-p nil))))
+                   (t (setq inter-word-space-p nil)))
+            finally #1#)
        (write-char #\Linefeed out))) ;; print the line with the correct indentation and a newline(terpri)
 
 #-yasi-as-library
