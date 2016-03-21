@@ -44,10 +44,10 @@
   (declare (ignore _))
   `(export (cl:defvar ,var ,val ,doc)))
 
-(cl:defvar *put* (make-hash-table :test 'equal))
+(cl:defvar *put* '())
 (defun put (symbol property value)
   (when (eql property 'common-lisp-indent-function)
-    (push (list (string-downcase symbol) value) *put*)))
+    (push (cons (string-downcase symbol) value) *put*)))
 
 (defun make-local-variable (symbol)
   (declare (ignore symbol)))
