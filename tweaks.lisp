@@ -87,7 +87,9 @@
       (and (listp x)
            (or (every (lambda (x)
                         (or (numberp x)
-                            (eql x '&body)))
+                            (eql x '&body)
+                            (and (listp x)
+                                 (eql (first x) '&whole))))
                       x)
                (equal (first x) 'as)))))
 
