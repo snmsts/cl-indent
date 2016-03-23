@@ -47,10 +47,16 @@
   `(export (cl:defvar ,var ,val ,doc)))
 
 (cl:defvar *put* '())
+
 (defun put (symbol property value)
+  (setq symbol (format nil (cl:if (eql (symbol-package symbol)
+                                    (find-package :keyword))
+                               ":~(~A~)"
+                               "~(~A~)")
+                       symbol))
   (when (eql property 'common-lisp-indent-function)
-    (setf *put* (cons (cons (string-downcase symbol) value)
-                       (remove (string-downcase symbol) *put* :key 'car :test 'equal)))))
+    (setf *put* (cons (cons symbol value)
+                      (remove symbol *put* :key 'car :test 'equal)))))
 
 (defun make-local-variable (symbol)
   (declare (ignore symbol)))
@@ -87,7 +93,7 @@
       (and (listp x)
            (or (every (lambda (x)
                         (or (numberp x)
-                            (eql x '&body)
+                            (find x '(&body &rest))
                             (and (listp x)
                                  (eql (first x) '&whole))))
                       x)

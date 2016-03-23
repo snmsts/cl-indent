@@ -184,6 +184,10 @@
                              2)) ;; extra width is used to make the if-clause have more indentation than the else clause
                           ((and (listp nas))
                            (let ((found (nth (1- nfs) nas)))
+                             (when (or (eql found '&rest)
+                                       (and (not found)
+                                            (eql (first (last nas 2)) '&rest)))
+                               (setq found (first (last nas))))
                              (or (when (numberp found) found)
                                  (and (listp found)
                                       (eql (first found) '&whole)
@@ -191,7 +195,7 @@
                                       (second found))
                                  (when (or (eql found '&body)
                                            (eql (first (last nas)) '&body))
-                                   *body*) 
+                                   *body*)
                                  2))))
                         0)))))
      do
