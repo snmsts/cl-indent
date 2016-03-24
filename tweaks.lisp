@@ -1,5 +1,5 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (pushnew :yasi-as-library *features*))
+  (pushnew :cl-indent-as-library *features*))
 
 (defpackage :cl-indent.var
   (:use :cl)

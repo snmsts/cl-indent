@@ -1,15 +1,15 @@
 ;; Original Author: Dorai Sitaram
 ;; Original Version: https://github.com/ds26gte/scmindent/blob/master/lispindent.lisp
 
-#+yasi-as-library
+#+cl-indent-as-library
 (in-package :cl-indent)
 
-(defvar *lisp-keywords* (or #+yasi-as-library (cl-indent.var:keywords) '()))
+(defvar *lisp-keywords* (or #+cl-indent-as-library (cl-indent.var:keywords) '()))
 (defvar *tab-size* 8)
 (defvar *body* 2)
 (defvar *mode* '())
 
-#-yasi-as-library
+#-cl-indent-as-library
 (unless *args* ;; print help if no command-line arguments are passed to the file
   (princ "
  ___________________________________________________________________________
@@ -250,7 +250,7 @@
           finally #1#)
        (write-char #\Linefeed out))) ;; print the line with the correct indentation and a newline(terpri)
 
-#-yasi-as-library
+#-cl-indent-as-library
 (progn
   (define-with-lisp-indent-number 0
       '(block
